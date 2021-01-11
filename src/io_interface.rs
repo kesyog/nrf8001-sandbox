@@ -1,5 +1,5 @@
 /// IO functionality exposed to Nordic C SDK
-use crate::{ITM_HANDLE, RDY_PIN_HANDLE, REQ_PIN_HANDLE, RESET_PIN_HANDLE, SPI_HANDLE};
+use crate::{RDY_PIN_HANDLE, REQ_PIN_HANDLE, RESET_PIN_HANDLE, SPI_HANDLE};
 use core::{convert::Infallible, ops::DerefMut};
 use cortex_m::{interrupt, iprintln};
 use hal::prelude::*;
@@ -22,7 +22,7 @@ pub enum Pin {
 
 #[no_mangle]
 pub extern "C" fn digitalRead(pin: u8) -> bool {
-    if let Some(Pin::RdyN) = FromPrimitive::from_u8(pin) {
+    if let Some(Pin::RdyN) = Pin::from_u8(pin) {
         unsafe {
             return RDY_PIN_HANDLE.as_mut().unwrap().is_high().unwrap();
         }
@@ -34,7 +34,7 @@ pub extern "C" fn digitalRead(pin: u8) -> bool {
 #[no_mangle]
 pub extern "C" fn digitalWrite(pin: u8, level: bool) {
     let pin_handle = unsafe {
-        match FromPrimitive::from_u8(pin) {
+        match Pin::from_u8(pin) {
             Some(Pin::Reset) => RESET_PIN_HANDLE.as_mut().unwrap()
                 as &mut dyn _embedded_hal_digital_v2_OutputPin<Error = Infallible>,
             Some(Pin::ReqN) => REQ_PIN_HANDLE.as_mut().unwrap()
@@ -59,8 +59,6 @@ pub extern "C" fn transmit_SPI_byte(txbuf: u8, rxbuf: &mut u8) -> bool {
         while !spi.is_rxne() {}
         *rxbuf = spi.read().unwrap();
     });
-    let itm = unsafe { ITM_HANDLE.as_mut().unwrap() };
-    iprintln!(&mut itm.stim[0], "SPI: Tx:{:x} Rx{:x}", txbuf, *rxbuf);
     true
 }
 

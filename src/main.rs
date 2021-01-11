@@ -81,9 +81,12 @@ fn main() -> ! {
             polarity: spi::Polarity::IdleLow,
             phase: spi::Phase::CaptureOnFirstTransition,
         },
-        1.mhz().into(),
+        2.mhz().into(),
         clocks,
     );
+    let spi1_raw = unsafe { &mut *(stm32::SPI1::ptr() as *mut stm32::spi1::RegisterBlock) };
+    // HAL library doesn't allow specifying lsbfirst option, which the nRF8001 relies on
+    spi1_raw.cr1.modify(|_, w| w.lsbfirst().lsbfirst());
     interrupt::free(|cs| {
         SPI_HANDLE.borrow(cs).replace(Some(spi1));
     });
@@ -111,13 +114,12 @@ fn main() -> ! {
     let mut aci_state = nrf8001_init();
     let mut aci_data = hal_aci_evt_t::default();
     unsafe {
-        nrf8001_sys::lib_aci_init(&mut aci_state, false);
+        nrf8001_sys::hal_aci_tl_init(&mut aci_state.aci_pins, false);
     }
+
     let mut n_aci_echo_cmds: u8 = 0;
 
     loop {
-        // Dummy code just to link in the NRF SDK to test the linker
-        // TODO: fill in real things
         let has_message = unsafe { nrf8001_sys::lib_aci_event_get(&mut aci_state, &mut aci_data) };
         if has_message {
             match aci_data.evt.evt_opcode {
