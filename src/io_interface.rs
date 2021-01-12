@@ -1,7 +1,7 @@
 /// IO functionality exposed to Nordic C SDK
 use crate::{RDY_PIN_HANDLE, REQ_PIN_HANDLE, RESET_PIN_HANDLE, SPI_HANDLE};
-use core::{convert::Infallible, ops::DerefMut};
-use cortex_m::{interrupt, iprintln};
+use core::{cell::RefCell, ops::DerefMut};
+use cortex_m::interrupt::{self, Mutex};
 use hal::prelude::*;
 use nrf8001_sys::eGpioPinMode;
 use num_derive::FromPrimitive;
@@ -9,7 +9,7 @@ use num_traits::FromPrimitive;
 use stm32f4xx_hal as hal;
 
 #[derive(Debug, Clone, Copy, FromPrimitive)]
-pub enum Pin {
+pub enum IOPin {
     Mosi = 0,
     Miso = 1,
     Sck = 2,
@@ -22,31 +22,43 @@ pub enum Pin {
 
 #[no_mangle]
 pub extern "C" fn digitalRead(pin: u8) -> bool {
-    if let Some(Pin::RdyN) = Pin::from_u8(pin) {
-        unsafe {
-            return RDY_PIN_HANDLE.as_mut().unwrap().is_high().unwrap();
-        }
+    if let Some(IOPin::RdyN) = IOPin::from_u8(pin) {
+        interrupt::free(|cs| {
+            return RDY_PIN_HANDLE
+                .borrow(cs)
+                .borrow_mut()
+                .as_mut()
+                .unwrap()
+                .is_high()
+                .unwrap();
+        })
     } else {
         panic!("Tried to read an invalid pin");
     }
 }
 
+fn writePin<T>(pin_handle_locked: &Mutex<RefCell<Option<T>>>, level: bool)
+where
+    T: _embedded_hal_digital_v2_OutputPin,
+{
+    interrupt::free(|cs| {
+        let mut pin_handle = pin_handle_locked.borrow(cs).borrow_mut();
+        let pin_handle = pin_handle.as_mut().unwrap();
+        if level {
+            pin_handle.set_high().ok();
+        } else {
+            pin_handle.set_low().ok();
+        }
+    });
+}
+
 #[no_mangle]
 pub extern "C" fn digitalWrite(pin: u8, level: bool) {
-    let pin_handle = unsafe {
-        match Pin::from_u8(pin) {
-            Some(Pin::Reset) => RESET_PIN_HANDLE.as_mut().unwrap()
-                as &mut dyn _embedded_hal_digital_v2_OutputPin<Error = Infallible>,
-            Some(Pin::ReqN) => REQ_PIN_HANDLE.as_mut().unwrap()
-                as &mut dyn _embedded_hal_digital_v2_OutputPin<Error = Infallible>,
-            _ => return,
-        }
+    match IOPin::from_u8(pin) {
+        Some(IOPin::Reset) => writePin(&RESET_PIN_HANDLE, level),
+        Some(IOPin::ReqN) => writePin(&REQ_PIN_HANDLE, level),
+        _ => {}
     };
-    if level {
-        pin_handle.set_high().ok();
-    } else {
-        pin_handle.set_low().ok();
-    }
 }
 
 #[no_mangle]
