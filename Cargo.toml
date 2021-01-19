@@ -12,6 +12,7 @@ cortex-m = "0.6.0"
 cortex-m-rt = "0.6.10"
 cortex-m-rtic = "0.5.5"
 panic-halt = "0.2.0"
+panic-itm = "0.4.2"
 heapless = "0.5.6"
 nrf8001-sys = { git = "ssh://git@github.com/kesyog/nrf8001-arm.git", branch = "main" }
 num-derive = "^0.3"

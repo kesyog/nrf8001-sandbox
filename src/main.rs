@@ -6,7 +6,9 @@
 
 mod delay;
 mod io_interface;
-mod nrf_verify_transport;
+mod nrf_ble_uart;
+mod nrf_ble_uart_consts;
+//mod nrf_verify_transport;
 
 use crate::hal::{
     delay::Delay,
@@ -25,7 +27,7 @@ use cortex_m::{
     iprintln,
 };
 use cortex_m_rt::entry;
-use panic_halt as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
+use panic_itm as _; // you can put a breakpoint on `rust_begin_unwind` to catch panics
 use stm32f4xx_hal as hal;
 
 type NrfSpi = spi::Spi<
@@ -52,10 +54,12 @@ static mut ITM_HANDLE: Option<stm32::ITM> = None;
 fn main() -> ! {
     init_mcu();
 
-    let mut aci_context = nrf_verify_transport::Context::new();
+    //let mut aci_context = nrf_verify_transport::Context::new();
+    let mut aci_context = nrf_ble_uart::Context::new();
 
     loop {
-        nrf_verify_transport::poll(&mut aci_context);
+        //nrf_verify_transport::poll(&mut aci_context);
+        nrf_ble_uart::poll(&mut aci_context);
     }
 }
 
@@ -87,7 +91,7 @@ fn init_mcu() {
         clocks,
     );
     // The HAL library doesn't allow specifying the lsbfirst option, which the nRF8001 relies on
-    // Set the necessary bti to enable it via the peripheral access crate
+    // Set the necessary bit to enable it via the peripheral access crate
     let spi1_raw = unsafe { &mut *(stm32::SPI1::ptr() as *mut stm32::spi1::RegisterBlock) };
     spi1_raw.cr1.modify(|_, w| w.lsbfirst().lsbfirst());
 
